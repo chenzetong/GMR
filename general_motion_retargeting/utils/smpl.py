@@ -25,9 +25,17 @@ def load_smplx_file(smplx_file, smplx_body_model_path):
     # print(smplx_data["trans"].shape)
     
     num_frames = smplx_data["pose_body"].shape[0]
-    
-    # betas: repeat single vector to batch size
-    betas = torch.tensor(smplx_data["betas"]).float().view(1, -1).repeat(num_frames, 1) # (N, 10)
+
+    # betas: pad/trim to match model expectations, then repeat to all frames
+    raw_betas = torch.tensor(smplx_data["betas"]).float()
+    if raw_betas.ndim == 1:
+        raw_betas = raw_betas[None]
+    if raw_betas.shape[1] < body_model.num_betas:
+        pad = body_model.num_betas - raw_betas.shape[1]
+        raw_betas = torch.cat([raw_betas, torch.zeros(1, pad)], dim=1)
+    elif raw_betas.shape[1] > body_model.num_betas:
+        raw_betas = raw_betas[:, :body_model.num_betas]
+    betas = raw_betas.repeat(num_frames, 1)
 
     # expression: use from file if available, otherwise zeros
     if "expression" in smplx_data:
